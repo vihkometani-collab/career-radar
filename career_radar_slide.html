@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>組織カルチャー・価値観レーダーチャート診断</title>
+  <!-- Chart.js ライブラリの読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+    }
+    body {
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      color: #333;
+    }
+    .slide-container {
+      width: 1000px;
+      height: 680px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 32px;
+      position: relative;
+    }
+    header {
+      border-bottom: 2px solid #eaeeef;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 22px;
+      color: #1a2b4c;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    p.subtitle {
+      font-size: 13px;
+      color: #666;
+      margin-top: 2px;
+    }
+    .main-content {
+      display: flex;
+      flex: 1;
+      gap: 24px;
+      align-items: center;
+      overflow: hidden;
+    }
+    /* 左側：入力コントロール（縦幅を半分近くに縮小） */
+    .controls-panel {
+      flex: 1.1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px; /* カード同士の間隔を8px→6pxに */
+      height: 100%;
+      justify-content: center;
+    }
+    .axis-item {
+      background: #f8fafc;
+      padding: 5px 10px; /* 上下パディングを10px→5pxへ半減 */
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .axis-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px; /* 余白を縮小 */
+    }
+    .axis-title {
+      font-weight: bold;
+      font-size: 12px; /* 少しフォントをコンパクトに */
+      color: #2d3748;
+    }
+    .axis-val {
+      font-weight: bold;
+      font-size: 12px;
+      color: #2b6cb0;
+      min-width: 40px;
+      text-align: right;
+    }
+    /* 10段階ステップ選択ボタン（高さ・サイズをコンパクト化） */
+    .step-buttons {
+      display: flex;
+      gap: 3px;
+    }
+    .step-btn {
+      flex: 1;
+      height: 20px; /* ボタンの高さを28px→20pxへ半減近くに */
+      border: 1px solid #cbd5e0;
+      background: #ffffff;
+      color: #4a5568;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-btn:hover {
+      background: #e2e8f0;
+    }
+    .step-btn.active {
+      background: #3182ce;
+      color: #ffffff;
+      border-color: #3182ce;
+      box-shadow: 0 1px 3px rgba(49, 130, 206, 0.3);
+    }
+    /* 右側：チャート表示エリア */
+    .chart-panel {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid #edf2f7;
+    }
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 480px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="slide-container">
+  <header>
+    <h1>📊 企業カルチャー・自己分析 8軸レーダー</h1>
+    <p class="subtitle">各項目を10段階で選択し、組織カルチャーの形状を確認しましょう。</p>
+  </header>
+
+  <div class="main-content">
+    <!-- 左側：10段階入力フォーム -->
+    <div class="controls-panel" id="controls"></div>
+
+    <!-- 右側：レーダーチャートのみ -->
+    <div class="chart-panel">
+      <div class="chart-wrapper">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // OpenWork準拠の順序（12時方向から時計回り）
+  const axes = [
+    { name: '待遇面', defaultVal: 5 },
+    { name: '士気', defaultVal: 5 },
+    { name: '風通し', defaultVal: 5 },
+    { name: '社員の相互尊重', defaultVal: 5 },
+    { name: '若いうちから活躍', defaultVal: 5 },
+    { name: '長期で働けるか', defaultVal: 5 },
+    { name: 'コンプライアンス', defaultVal: 5 },
+    { name: '人事評価', defaultVal: 5 }
+  ];
+
+  const currentValues = axes.map(a => a.defaultVal);
+
+  // コントロールUIの動的生成
+  const controlsContainer = document.getElementById('controls');
+
+  axes.forEach((axis, index) => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'axis-item';
+
+    const headerEl = document.createElement('div');
+    headerEl.className = 'axis-header';
+    
+    const titleEl = document.createElement('span');
+    titleEl.className = 'axis-title';
+    titleEl.innerText = `${index + 1}. ${axis.name}`;
+
+    const valEl = document.createElement('span');
+    valEl.className = 'axis-val';
+    valEl.id = `val-display-${index}`;
+    valEl.innerText = `Lv. ${currentValues[index]}`;
+
+    headerEl.appendChild(titleEl);
+    headerEl.appendChild(valEl);
+
+    // 10段階ボタン群
+    const btnsEl = document.createElement('div');
+    btnsEl.className = 'step-buttons';
+
+    for (let step = 1; step <= 10; step++) {
+      const btn = document.createElement('button');
+      btn.className = `step-btn ${step === currentValues[index] ? 'active' : ''}`;
+      btn.id = `btn-${index}-${step}`;
+      btn.innerText = step;
+      btn.onclick = () => updateAxisValue(index, step);
+      btnsEl.appendChild(btn);
+    }
+
+    itemEl.appendChild(headerEl);
+    itemEl.appendChild(btnsEl);
+    controlsContainer.appendChild(itemEl);
+  });
+
+  // レーダーチャート初期化
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  const radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: axes.map(a => a.name),
+      datasets: [{
+        label: '評価スコア',
+        data: currentValues,
+        backgroundColor: 'rgba(49, 130, 206, 0.25)',
+        borderColor: '#3182ce',
+        borderWidth: 3,
+        pointBackgroundColor: '#2b6cb0',
+        pointBorderColor: '#fff',
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: '#2b6cb0',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          min: 0,
+          max: 10,
+          ticks: {
+            stepSize: 2,
+            display: false
+          },
+          grid: {
+            color: '#e2e8f0'
+          },
+          angleLines: {
+            color: '#cbd5e0'
+          },
+          pointLabels: {
+            font: {
+              size: 12,
+              weight: 'bold'
+            },
+            color: '#2d3748'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+
+  // 値更新処理
+  function updateAxisValue(index, val) {
+    currentValues[index] = val;
+
+    document.getElementById(`val-display-${index}`).innerText = `Lv. ${val}`;
+
+    for (let step = 1; step <= 10; step++) {
+      const btn = document.getElementById(`btn-${index}-${step}`);
+      if (step === val) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+
+    radarChart.data.datasets[0].data = [...currentValues];
+    radarChart.update();
+  }
+</script>
+</body>
+</html>
